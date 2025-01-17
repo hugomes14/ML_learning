@@ -239,3 +239,121 @@ plt.ylabel('Car Price')
 plt.legend(['True Car Price', 'Predicted Car Price'])
 
 plt.show()
+
+##Improve the coding style
+
+TRAIN_RATIO = 0.8
+VAL_RATIO = 0.1
+TEST_RATIO = 0.1
+DATASET_SIZE = len(X)
+
+X_train = X[:int(TRAIN_RATIO * DATASET_SIZE)]
+y_train = y[:int(TRAIN_RATIO * DATASET_SIZE)]
+
+X_val = X[int(TRAIN_RATIO * DATASET_SIZE):int((TRAIN_RATIO + VAL_RATIO) * DATASET_SIZE)]
+y_val = y[int(TRAIN_RATIO * DATASET_SIZE):int((TRAIN_RATIO + VAL_RATIO) * DATASET_SIZE)]
+
+X_test = X[int((TRAIN_RATIO + VAL_RATIO) * DATASET_SIZE):]
+y_test = y[int((TRAIN_RATIO + VAL_RATIO) * DATASET_SIZE):]
+
+#Dataset.frm_tensor_slices() is used to create a dataset from a tensor wich helps to improve the performance of the model by making it
+#faster to access the data.
+
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+
+#Shuffle() is used to shuffle the data to prevent it from being biased. The buffer_size parameter is used to determine the number of 
+#elements that will be shuffled at a time. The reshuffle_each_iteration parameter is used to determine if the data will be reshuffled
+#after each iteration.
+
+train_dataset.shuffle(buffer_size=8, reshuffle_each_iteration= True)
+
+
+#Batch() is used to create batches of data. The batch_size parameter is used to determine the number of elements that will be in each
+#batch. The drop_remainder parameter is used to determine if the last batch will be dropped if it is smaller than the batch size.
+
+train_dataset.batch(32)
+
+#The prefetch() method is used to prefetch the data to improve the performance of the model. Prefeching is used to load the data
+#before it is needed. In this way we can train part of the model while the other part is being loaded.
+#It helps to reduce the latency of the model by making it faster to access the data.
+#The buffer_size parameter is used to determine the number of elements that will be prefetched.
+#the tf.data.AUTOTUNE parameter is used to determine the number of elements that will be prefetched automatically.
+
+train_dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+
+
+#same for validation
+
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+train_dataset = train_dataset.shuffle(buffer_size=8, reshuffle_each_iteration=True)
+train_dataset = train_dataset.batch(32)
+train_dataset = train_dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+
+val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+val_dataset = val_dataset.shuffle(buffer_size=8, reshuffle_each_iteration=True)
+val_dataset = val_dataset.batch(32)
+val_dataset = val_dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+
+test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test))
+test_dataset = test_dataset.shuffle(buffer_size=8, reshuffle_each_iteration=True)
+test_dataset = test_dataset.batch(32)
+test_dataset = test_dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+
+# Verify dataset shapes
+for x, y in train_dataset.take(1):
+    print(f"Train input batch shape: {x.shape}, Train label batch shape: {y.shape}")
+
+# Define and compile the model
+model_with_hidden_layers = tf.keras.Sequential([
+    InputLayer(input_shape=(8,)),
+    normalizer,
+    Dense(units=32, activation='relu'),
+    Dense(units=32, activation='relu'),
+    Dense(units=32, activation='relu'),
+    Dense(units=1),
+])
+
+model_with_hidden_layers.compile(
+    optimizer=Adam(learning_rate=0.001),
+    loss=MeanAbsoluteError(),
+    metrics=[RootMeanSquaredError()]
+)
+
+# Train the model
+history = model_with_hidden_layers.fit(
+    train_dataset, 
+    validation_data=val_dataset, 
+    epochs=100, 
+    verbose=1
+)
+
+
+plt.plot(history.history['loss'])
+plt.title('Model root mean squared error') 
+plt.ylabel('Root mean squared error')
+plt.xlabel('Epoch') 
+plt.legend(['Train'])
+plt.show()
+
+y_true = list(y_test[:,0].numpy())
+
+y_pred = list(model_with_hidden_layers.predict(X_test)[:,0])
+
+
+
+model.predict(X_test)
+
+ind = np.arange(100)
+plt.figure(figsize=(40, 12))
+
+width = 0.4
+
+plt.bar(ind, y_true, width, label='Predicted Car Price')
+plt.bar(ind + width, y_pred, width, label='True Car Price')
+
+plt.xlabel('Actual vs Predicted Car Price')
+plt.ylabel('Car Price')
+
+plt.legend(['True Car Price', 'Predicted Car Price'])
+
+plt.show()
