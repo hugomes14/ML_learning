@@ -74,7 +74,7 @@ val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration=True
 
 test_dataset = test_dataset.batch(1)
 
-
+#-------------Feature Extraction----------------
 
 func_input = Input(shape = (IM_SIZE, IM_SIZE, 3), name = 'input_image')
 
@@ -83,17 +83,39 @@ x = BatchNormalization()(x)
 x = MaxPool2D(pool_size = 2, strides = 2)(x)
 x = Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu')(x)
 x = BatchNormalization()(x)
-x = MaxPool2D(pool_size = 2, strides = 2)(x)
+output = MaxPool2D(pool_size = 2, strides = 2)(x)
+
+feature_extractor_model = Model(inputs = func_input, outputs = output,  name = 'Feature_Extractor')
+
+#-----------------OR------------------------
+
+feature_extractor_model = tf.keras.Sequential([
+    Input(shape = (IM_SIZE, IM_SIZE, 3), name = 'input_image'),
+    Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+    BatchNormalization(),
+    MaxPool2D(pool_size = 2, strides = 2),
+    Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+    BatchNormalization(),
+    MaxPool2D(pool_size = 2, strides = 2)
+])
+ 
+print(feature_extractor_model.summary())
+
+
+#-------------Model Creation----------------
+
+x = feature_extractor_model(func_input)
 x = Flatten()(x)
 x = Dense(100, activation = 'relu')(x)
 x = BatchNormalization()(x)
 x = Dense(10, activation = 'relu')(x)
 x = BatchNormalization()(x)
-func_output = Dense(1, activation = 'sigmoid')(x) 
+output = Dense(1, activation = 'sigmoid')(x)
 
-functional_lenet_model = Model(inputs = func_input, outputs = func_output,  name = 'functional_lenet_model')
+functional_lenet_model = Model(inputs = func_input, outputs = output,  name = 'Lenet_Model')
  
-print(functional_lenet_model.summary())
+print(functional_lenet_model.summary()) 
+
 
 functional_lenet_model.compile(
     optimizer = Adam(learning_rate = 0.001),
@@ -101,7 +123,7 @@ functional_lenet_model.compile(
     metrics = ['accuracy']
 )
 
-history = functional_lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 100, verbose = 1)
+history = functional_lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 1, verbose = 1)
 
 
 #-------------Model Evaluation----------------
