@@ -1,2 +1,5 @@
 venv/
 *.h5
+dataset
+saved_tf_dataset
+*avi

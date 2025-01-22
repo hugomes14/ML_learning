@@ -73,32 +73,48 @@ class NeurallearnDense(Layer):
         self.output_units = output_units
         self.activation = activation
 
-    def build(self, input_shape):
-        self.w = self.add_weight(shape = (input_shape[-1], self.units), initializer = 'random_normal', trainable = True)
-        self.b = self.add_weight(shape = (self.units,), initializer = 'zeros', trainable = True)
+    def build(self, shape):
+        self.w = self.add_weight(shape = (shape[-1], self.output_units), initializer = 'random_normal', trainable = True)
+        self.b = self.add_weight(shape = (self.output_units,), initializer = 'zeros', trainable = True)
     
     def call(self, inputs):
         return self.activation(tf.matmul(inputs, self.w) + self.b)
 
 
 
-functional_lenet_model = "Model(inputs = func_input, outputs = output,  name = 'Lenet_Model')"
+costum_layer_lenet_model = tf.keras.Sequential([
+        InputLayer(shape = (IM_SIZE, IM_SIZE, 3)),
+        Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+        BatchNormalization(),
+        MaxPool2D(pool_size = 2, strides = 2),
+        Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+        BatchNormalization(),
+        MaxPool2D(pool_size = 2, strides = 2),
+        Flatten(),
+        NeurallearnDense(100, activation = tf.nn.relu),
+        BatchNormalization(),
+        NeurallearnDense(10, activation = tf.nn.relu),
+        BatchNormalization(),
+        NeurallearnDense(1, activation = tf.nn.sigmoid)
+    ])
+
+print(costum_layer_lenet_model.summary())
  
-print(functional_lenet_model.summary()) 
+print(costum_layer_lenet_model.summary()) 
 
 
 #-------------Model Training----------------
 
 
-functional_lenet_model.compile(
+costum_layer_lenet_model.compile(
     optimizer = Adam(learning_rate = 0.001),
     loss = BinaryCrossentropy(),
     metrics = ['accuracy']
 )
 
-history = functional_lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 1, verbose = 1)
+history = costum_layer_lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 1, verbose = 1)
 
 
 #-------------Model Evaluation----------------
 
-print(functional_lenet_model.evaluate(test_dataset))
+print(costum_layer_lenet_model.evaluate(test_dataset))

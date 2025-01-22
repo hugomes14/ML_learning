@@ -55,6 +55,7 @@ VAL_RATIO = 0.1
 TEST_RATIO = 0.1
 
 def splits(dataset, train_ratio, val_ratio, test_ratio):
+    print(dataset)
     total_size = dataset_info.splits['train'].num_examples
     train_size = int(train_ratio * total_size)
     val_size = int(val_ratio * total_size)
