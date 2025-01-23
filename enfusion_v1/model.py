@@ -27,7 +27,7 @@ train_dataset, val_dataset, test_dataset = splits(dataset, TRAIN_RATIO, VAL_RATI
 print(train_dataset, len(val_dataset), len(test_dataset))
 
 
-IM_SIZE = 224
+IM_SIZE = 32
 
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE)), label
@@ -54,11 +54,11 @@ lenet_model = tf.keras.Sequential([
         Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
         BatchNormalization(),
         MaxPool2D(pool_size = 2, strides = 2),
-        Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+        Conv2D(filters = 12, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
         BatchNormalization(),
         MaxPool2D(pool_size = 2, strides = 2),
         Flatten(),
-        Dense(36, activation = 'relu'),
+        Dense(100, activation = 'relu'),
         BatchNormalization(),
         Dense(10, activation = 'relu'),
         BatchNormalization(),
@@ -100,10 +100,7 @@ plt.show()
 print(lenet_model.evaluate(test_dataset))
 
 # Save the entire model to a file
-model_path = "infuison_model_v1.h5"
+model_path = "infusion_model_v1.h5"
 lenet_model.save(model_path)
 print(f"Model saved to {model_path}")
 
-
-"""for i, a in enumerate(test_dataset.as_numpy_iterator()):
-    print(a[1], predictions[i])"""
