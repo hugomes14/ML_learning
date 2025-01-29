@@ -27,7 +27,7 @@ train_dataset, val_dataset, test_dataset = splits(dataset, TRAIN_RATIO, VAL_RATI
 print(train_dataset, len(val_dataset), len(test_dataset))
 
 
-IM_SIZE = 32
+IM_SIZE = 224
 
 def resize_rescale(image, label):
     return tf.image.resize(image, (IM_SIZE, IM_SIZE)), label
@@ -51,10 +51,10 @@ test_dataset = test_dataset.batch(1)
 
 lenet_model = tf.keras.Sequential([
         InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
-        Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+        Conv2D(filters = 8, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
         BatchNormalization(),
         MaxPool2D(pool_size = 2, strides = 2),
-        Conv2D(filters = 12, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
+        Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu'),
         BatchNormalization(),
         MaxPool2D(pool_size = 2, strides = 2),
         Flatten(),

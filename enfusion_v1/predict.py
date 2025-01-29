@@ -22,10 +22,10 @@ frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = video.get(cv2.CAP_PROP_FPS)
 
 
-window_size = 12  
+window_size = 12
 x_stride = 12
-y_stride = 12  
-IM_SIZE = 32 
+y_stride = 12
+IM_SIZE = 16
 
 def preprocess_window(window):
     """Resize and normalize a window."""
