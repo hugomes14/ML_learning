@@ -16,7 +16,7 @@ lenet_model.compile(optimizer=Adam(learning_rate=0.0001),
 print("Model loaded and recompiled successfully!")
 
 
-video = cv2.VideoCapture("teste2.avi")
+video = cv2.VideoCapture("teste3.avi")
 frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = video.get(cv2.CAP_PROP_FPS)
@@ -85,6 +85,7 @@ while True:
     if not ret:
         break  # Exit if no more frames
 
+    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
     image = frame
 
     # Record the beginning step time
@@ -105,7 +106,7 @@ while True:
     # Draw rectangles for predictions > 0.5
     step_start = time.time()
     for i, prediction in enumerate(predictions):
-        if prediction > 0.5:
+        if prediction > 0.9:
             x, y = locations[i]
             cv2.rectangle(frame, (x, y), (x + window_size, y + window_size), (0, 255, 0), 1)
     drawing_time = time.time() - step_start
