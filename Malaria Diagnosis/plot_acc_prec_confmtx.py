@@ -14,12 +14,16 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("TKAgg")
 import tensorflow_datasets as tfds 
 import tensorflow as tf
 from tensorflow.keras.metrics import BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall, AUC #type: ignore
 from tensorflow.keras.layers import InputLayer, Conv2D, Dense, MaxPool2D, Flatten, BatchNormalization #type: ignore
 from tensorflow.keras.losses import BinaryCrossentropy #type: ignore
-
+import sklearn
+from sklearn.metrics import confusion_matrix, roc_curve
+import seaborn as sns
 from tensorflow.keras.optimizers import Adam #type: ignore
 
 
@@ -88,7 +92,7 @@ lenet_model.compile(
     metrics = metrics
 )
 
-history = lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 5, verbose = 1)
+history = lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 10, verbose = 2)
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -109,9 +113,47 @@ plt.show()
 
 #-------------Model Evaluation----------------
 
-print(lenet_model.evaluate(test_dataset))
+print(lenet_model.evaluate(test_dataset, verbose = 2))
+
+labels = []
+inp = []
+
+for x,y in test_dataset.as_numpy_iterator():
+    labels.append(y)
+    inp.append(x)
+
+#Convert the labels in a vector 
+labels = np.array([i[0] for i in labels])
+
+#Convert the predicted in a vector similiar to labels
+predicted = lenet_model.predict(np.array(inp)[:,0,...])[:,0]
 
 
+threshold = 0.5
+
+cm = confusion_matrix(labels, predicted > threshold)
+print(cm)
+
+
+plt.figure(figsize=(8, 8))
+
+sns.heatmap(cm, annot= True)
+plt.title('Confusion matrix - {}'.format(threshold))
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.show()
+
+
+
+fp, tp,thresholds = roc_curve(labels, predicted)
+plt.plot(fp, tp)
+plt.xlabel("False positive rate")
+plt.ylabel("True Positive rate")
+plt.grid()
+for i in range(0, len(thresholds), 20):
+    plt.text(fp[i], tp[i], thresholds[i])
+
+plt.show()
 """
 lenet_model.predict(test_dataset.take(1))
 
