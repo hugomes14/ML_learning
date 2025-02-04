@@ -1,19 +1,80 @@
-# Callbacks are functions that are called during the training process at certain points, such as at the end of an epoch or before/after a batch is processed.
-# They can be used to monitor the training process, save the model, adjust the learning rate, and more.
-# Here we define some common callbacks:
 
-#There is other ways to evaluate the model performance other than accuracy, such as precision, recall, F1 score, and confusion matrix.
-#Its is important to have an ideia about false positives and false negatives, and how they can affect the model performance.  
-#The accuracy formula is defined as: Accuracy = (TP + TN) / (TP + TN + FP + FN); and tells us how many of the predictions are correct.
-#The precision formula is defined as: Precision = TP / (TP + FP); and tells us how many of the positive predictions are correct.
-#the recall formula is defined as: Recall = TP / (TP + FN); and tells us how many of the actual positive cases were predicted correctly.
-#The F1 score formula is defined as: F1 = 2 * (Precision * Recall) / (Precision + Recall); and tells us the balance between precision and recall.
-#The specificity formula is defined as: Specificity = TN / (TN + FP); and tells us how many of the actual negative cases were predicted correctly.
-#The ROC curve is a graphical representation of the true positive rate (sensitivity) against the false positive rate (1-specificity). The objective is
-#to have a curve here the TP rate is high and the FP rate is low. The AUC is the area under the curve and is a measure of how well the model is performing.
-#When choosing the right threshold, we need to consider the trade-off between precision and recall. The ROC curve can help us to choose the right threshold.
-#The AUC is a value between 0 and 1, where 1 means the model is perfect and 0.5 means the model is not better than random guessing. 
- 
+## What are Callbacks?
+"""Callbacks in TensorFlow (`tf.keras.callbacks.Callback`) allow you to monitor and control the training process by executing custom functions at different stages (e.g., at the beginning/end of an epoch or batch).
+
+## Built-in Callbacks
+
+### 1. `EarlyStopping`
+Stops training when a monitored metric stops improving.
+```python
+from tensorflow.keras.callbacks import EarlyStopping
+callback = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+```
+- **monitor**: Metric to track (`'val_loss'`, `'accuracy'`, etc.)
+- **patience**: Number of epochs to wait before stopping
+- **restore_best_weights**: Reverts to the best model before stopping
+
+### 2. `ModelCheckpoint`
+Saves the model at specified intervals.
+```python
+from tensorflow.keras.callbacks import ModelCheckpoint
+callback = ModelCheckpoint(filepath='best_model.h5', save_best_only=True, monitor='val_loss')
+```
+- **filepath**: Path to save the model
+- **save_best_only**: Saves only the best model
+- **monitor**: Metric to track
+
+### 3. `ReduceLROnPlateau`
+Reduces learning rate when a metric has stopped improving.
+```python
+from tensorflow.keras.callbacks import ReduceLROnPlateau
+callback = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2)
+```
+- **factor**: Reduction factor (e.g., `0.5` halves the learning rate)
+- **patience**: Number of epochs before reducing the learning rate
+
+### 4. `TensorBoard`
+Logs training metrics for visualization with TensorBoard.
+```python
+from tensorflow.keras.callbacks import TensorBoard
+callback = TensorBoard(log_dir='./logs', histogram_freq=1)
+```
+- **log_dir**: Directory for logs
+- **histogram_freq**: Frequency of histogram logging
+
+### 5. `CSVLogger`
+Logs training metrics into a CSV file.
+```python
+from tensorflow.keras.callbacks import CSVLogger
+callback = CSVLogger('training_log.csv', append=True)
+```
+- **filename**: File to store logs
+- **append**: Append to existing file instead of overwriting
+
+---
+
+## Custom Callbacks
+
+You can create a custom callback by subclassing `tf.keras.callbacks.Callback`.
+
+### Example: Logging Every 5 Epochs
+```python
+import tensorflow as tf
+
+class CustomLogger(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        if epoch % 5 == 0:
+            print(f"Epoch {epoch+1}: Accuracy={logs['accuracy']:.4f}, Loss={logs['loss']:.4f}")
+```
+
+### Example: Stop Training on Condition
+```python
+class StopOnAccuracy(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        if logs.get('accuracy') > 0.98:
+            print("Stopping training: Reached 98% accuracy")
+            self.model.stop_training = True
+```"""
 
 import tensorflow as tf
 import numpy as np
@@ -26,7 +87,7 @@ from tensorflow.keras.metrics import BinaryAccuracy, FalsePositives, FalseNegati
 from tensorflow.keras.layers import InputLayer, Conv2D, Dense, MaxPool2D, Flatten, BatchNormalization #type: ignore
 from tensorflow.keras.losses import BinaryCrossentropy #type: ignore
 from tensorflow.keras.optimizers import Adam #type: ignore
-from tensorflow.keras.callbacks import Callback ,EarlyStopping, ModelCheckpoint #type: ignore
+from tensorflow.keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau #type: ignore
 import sklearn
 from sklearn.metrics import confusion_matrix, roc_curve
 import seaborn as sns
@@ -78,7 +139,7 @@ lenet_model = tf.keras.Sequential([
         BatchNormalization(),
         MaxPool2D(pool_size = 2, strides = 2),
         Flatten(),
-        Dense(100, activation = 'relu'),
+        Dense(50, activation = 'relu'),
         BatchNormalization(),
         Dense(10, activation = 'relu'),
         BatchNormalization(),
@@ -87,21 +148,53 @@ lenet_model = tf.keras.Sequential([
 
 print(lenet_model.summary())
 
+#-----------------Callbacks-------------------------- 
+
 class LossCallback(Callback):
     def on_epoch_end(self, epoch, logs):
-        print("/n Epock Number {} the model has a loss of {}".format(epoch, logs["loss"]))
+        print("/n Epock Number {} the model has a loss of {}".format(epoch+1, logs["loss"]))
+    
+    def on_batch_end(self, batch, logs):
+        print("/n Epock Number {} the model has a loss of {}".format(batch, logs) )
+
+
+csv_callback = CSVLogger(
+    'logs.csv', separator= ',', append= True
+)
+
+es_callback = EarlyStopping(
+    monitor= 'val_loss', min_delta= 0, patience= 3,
+    verbose= 0, mode= 'auto', baseline= None, restore_best_weights= False
+)
+
+def scheduler(epoch, lr):
+    if epoch < 2:
+        return lr
+    else:
+        return float(lr*tf.math.exp(-0.1))
+    
+scheduler_callback = LearningRateScheduler(scheduler, verbose= 1)
+
+checkpoint_callback = ModelCheckpoint(
+    'checkpoints.keras', monitor= 'val_loss', verbose= 1, save_best_only= True,
+    save_weights_only= False, mode= 'auto', save_freq= 'epoch'
+)
+
+plateau_callback = ReduceLROnPlateau(
+    monitor= 'val_accuracy', fator= 0.1, patience= 2, verbose= 1
+)
 
 #-------------Binary Crossentropy Loss----------------
 metrics = [TruePositives(name= 'tp'), FalsePositives(name= 'fp'), TrueNegatives(name= 'tn'), FalseNegatives(name= 'fn'), 
            BinaryAccuracy(name= 'accuracy'), Precision(name= 'precision'), Recall(name= 'recall'), AUC(name= 'acu')]
 
 lenet_model.compile(
-    optimizer = Adam(learning_rate = 0.001),
+    optimizer = Adam(learning_rate = 0.01),
     loss = BinaryCrossentropy(),
-    metrics = metrics
+    metrics = [BinaryAccuracy(name= 'accuracy'), Precision(name= 'precision'), Recall(name= 'recall'), AUC(name= 'acu')]
 )
 
-history = lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 10, verbose = 1, callback= [LossCallback(),])
+history = lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 40, verbose = 1, callbacks= [checkpoint_callback])
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -122,7 +215,7 @@ plt.show()
 
 #-------------Model Evaluation----------------
 
-print(lenet_model.evaluate(test_dataset, verbose = 2))
+print(lenet_model.evaluate(test_dataset, verbose = 1))
 
 labels = []
 inp = []
@@ -163,24 +256,7 @@ for i in range(0, len(thresholds), 20):
     plt.text(fp[i], tp[i], thresholds[i])
 
 plt.show()
-"""
-lenet_model.predict(test_dataset.take(1))
 
-def parasite_or_not(x):
-    if x > 0.5:
-        return 1
-    else:
-        return 0
-    
-for i, (image, label) in enumerate(test_dataset.take(9)):
-    ax = plt.subplot(3,3, i+1)
-    plt.imshow(image[0])
-    plt.axis("off")
-    plt.title(str(parasite_or_not(label.numpy()[0])) + ":" + str(parasite_or_not(lenet_model.predict(image)[0])))
-    plt.tight_layout()
-    plt.axis("off")
-    plt.show()
-"""
 
 #-------------Save the model----------------
 
