@@ -54,7 +54,7 @@ def augment(image, label):
 train_dataset = (train_dataset
                  .map(resize_rescale)
                  #.concatenate(train_dataset.map(augment))
-                 .concatenate(train_dataset.map(augment))
+                 .map(augment)
                  .shuffle(buffer_size = 8, reshuffle_each_iteration=True)
                  .batch(32)
                  .prefetch(tf.data.AUTOTUNE))
@@ -96,11 +96,11 @@ lenet_model = tf.keras.Sequential([
     GlobalAveragePooling2D(),
 
     # Fully Connected Layers
-    Dense(32, activation='relu'),#, kernel_regularizer=L2(0.01)),
+    Dense(128, activation='relu'),#, kernel_regularizer=L2(0.01)),
     BatchNormalization(),
     #Dropout(rate=0.4),
     
-    Dense(16, activation='relu'),#, kernel_regularizer=L2(0.01)),
+    Dense(64, activation='relu'),#, kernel_regularizer=L2(0.01)),
     BatchNormalization(),
 
     # Output Layer for Binary Classification
