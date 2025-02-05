@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 # Path to the image dataset
-image_dir = "../dataset"
+image_dir = "dataset"
 
 # Parameters
 image_size = (128, 128)  # Resize images to 128x128

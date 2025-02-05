@@ -9,7 +9,7 @@ import statistics
 # Load and recompile model
 model_path = "infusion_model_v1.h5"
 lenet_model = tf.keras.models.load_model(model_path)
-lenet_model.compile(optimizer=Adam(learning_rate=0.0001), 
+lenet_model.compile(optimizer=Adam(learning_rate=0.001), 
                     loss=BinaryCrossentropy(), 
                     metrics=['accuracy'])
 
@@ -106,7 +106,7 @@ while True:
     # Draw rectangles for predictions > 0.5
     step_start = time.time()
     for i, prediction in enumerate(predictions):
-        if prediction > 0.9:
+        if prediction > 0.75:
             x, y = locations[i]
             cv2.rectangle(frame, (x, y), (x + window_size, y + window_size), (0, 255, 0), 1)
     drawing_time = time.time() - step_start
