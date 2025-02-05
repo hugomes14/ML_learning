@@ -1,81 +1,3 @@
-
-## What are Callbacks?
-"""Callbacks in TensorFlow (`tf.keras.callbacks.Callback`) allow you to monitor and control the training process by executing custom functions at different stages (e.g., at the beginning/end of an epoch or batch).
-
-## Built-in Callbacks
-
-### 1. `EarlyStopping`
-Stops training when a monitored metric stops improving.
-```python
-from tensorflow.keras.callbacks import EarlyStopping
-callback = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-```
-- **monitor**: Metric to track (`'val_loss'`, `'accuracy'`, etc.)
-- **patience**: Number of epochs to wait before stopping
-- **restore_best_weights**: Reverts to the best model before stopping
-
-### 2. `ModelCheckpoint`
-Saves the model at specified intervals.
-```python
-from tensorflow.keras.callbacks import ModelCheckpoint
-callback = ModelCheckpoint(filepath='best_model.h5', save_best_only=True, monitor='val_loss')
-```
-- **filepath**: Path to save the model
-- **save_best_only**: Saves only the best model
-- **monitor**: Metric to track
-
-### 3. `ReduceLROnPlateau`
-Reduces learning rate when a metric has stopped improving.
-```python
-from tensorflow.keras.callbacks import ReduceLROnPlateau
-callback = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2)
-```
-- **factor**: Reduction factor (e.g., `0.5` halves the learning rate)
-- **patience**: Number of epochs before reducing the learning rate
-
-### 4. `TensorBoard`
-Logs training metrics for visualization with TensorBoard.
-```python
-from tensorflow.keras.callbacks import TensorBoard
-callback = TensorBoard(log_dir='./logs', histogram_freq=1)
-```
-- **log_dir**: Directory for logs
-- **histogram_freq**: Frequency of histogram logging
-
-### 5. `CSVLogger`
-Logs training metrics into a CSV file.
-```python
-from tensorflow.keras.callbacks import CSVLogger
-callback = CSVLogger('training_log.csv', append=True)
-```
-- **filename**: File to store logs
-- **append**: Append to existing file instead of overwriting
-
----
-
-## Custom Callbacks
-
-You can create a custom callback by subclassing `tf.keras.callbacks.Callback`.
-
-### Example: Logging Every 5 Epochs
-```python
-import tensorflow as tf
-
-class CustomLogger(tf.keras.callbacks.Callback):
-    def on_epoch_end(self, epoch, logs=None):
-        if epoch % 5 == 0:
-            print(f"Epoch {epoch+1}: Accuracy={logs['accuracy']:.4f}, Loss={logs['loss']:.4f}")
-```
-
-### Example: Stop Training on Condition
-```python
-class StopOnAccuracy(tf.keras.callbacks.Callback):
-    def on_epoch_end(self, epoch, logs=None):
-        if logs.get('accuracy') > 0.98:
-            print("Stopping training: Reached 98% accuracy")
-            self.model.stop_training = True
-```"""
-
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -84,7 +6,7 @@ matplotlib.use("TKAgg")
 import tensorflow_datasets as tfds 
 import tensorflow as tf
 from tensorflow.keras.metrics import BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall, AUC #type: ignore
-from tensorflow.keras.layers import InputLayer, Conv2D, Dense, MaxPool2D, Flatten, BatchNormalization, Dropout #type: ignore
+from tensorflow.keras.layers import InputLayer, Conv2D, Dense, MaxPool2D, Flatten, BatchNormalization, Dropout, GlobalAveragePooling2D #type: ignore
 from tensorflow.keras.losses import BinaryCrossentropy #type: ignore
 from tensorflow.keras.optimizers import Adam #type: ignore
 from tensorflow.keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau #type: ignore
@@ -96,8 +18,8 @@ import seaborn as sns
 
 dataset, dataset_info = tfds.load('malaria', with_info=True, as_supervised=True, shuffle_files=True, split=['train']) 
 
-TRAIN_RATIO = 0.8
-VAL_RATIO = 0.1
+TRAIN_RATIO = 0.75
+VAL_RATIO = 0.15
 TEST_RATIO = 0.1
 
 def splits(dataset, train_ratio, val_ratio, test_ratio):
@@ -113,42 +35,77 @@ def splits(dataset, train_ratio, val_ratio, test_ratio):
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
 
-
+print(len(train_dataset))
 IM_SIZE = 224
 
 def resize_rescale(image, label):
-    return tf.image.resize(image, (IM_SIZE, IM_SIZE))/255.0, label
+    image = tf.image.resize(image, (IM_SIZE, IM_SIZE)) / 255.0
+    return image, label
 
-train_dataset = train_dataset.map(resize_rescale)
-val_dataset = val_dataset.map(resize_rescale)
-test_dataset = test_dataset.map(resize_rescale)
+def augment(image, label):
+    #augmented_image = tf.image.rot90(image)
+    #augmented_image = tf.image.adjust_saturation(augmented_image, saturation_factor=0.3)
+    augmented_image = tf.image.random_flip_left_right(image)
+    augmented_image = tf.image.random_flip_up_down(augmented_image)
+    
+    return resize_rescale(augmented_image, label)
 
 
+train_dataset = (train_dataset
+                 .map(resize_rescale)
+                 #.concatenate(train_dataset.map(augment))
+                 .concatenate(train_dataset.map(augment))
+                 .shuffle(buffer_size = 8, reshuffle_each_iteration=True)
+                 .batch(32)
+                 .prefetch(tf.data.AUTOTUNE))
 
-train_dataset = train_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration=True).batch(32).prefetch(tf.data.AUTOTUNE)
-val_dataset = val_dataset.shuffle(buffer_size = 8, reshuffle_each_iteration=True).batch(32).prefetch(tf.data.AUTOTUNE)
+val_dataset = (val_dataset
+               .map(resize_rescale)
+               .shuffle(buffer_size = 8, reshuffle_each_iteration=True)
+               .batch(32)
+               .prefetch(tf.data.AUTOTUNE))
 
-test_dataset = test_dataset.batch(1)
+test_dataset = (test_dataset
+                .map(resize_rescale)
+                .batch(1))
 
 
 lenet_model = tf.keras.Sequential([
-        InputLayer(input_shape = (IM_SIZE, IM_SIZE, 3)),
-        Conv2D(filters = 6, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu', kernel_regularizer= L2(0.01)),
-        BatchNormalization(),
-        MaxPool2D(pool_size = 2, strides = 2),
-        Dropout(rate= 0.3),
-        Conv2D(filters = 16, kernel_size = 3, strides = 1, padding = 'valid', activation = 'relu',  kernel_regularizer= L2(0.01)),
-        BatchNormalization(),
-        MaxPool2D(pool_size = 2, strides = 2),
-        Flatten(),
-        Dense(100, activation = 'relu', kernel_regularizer= L2(0.01)),
-        BatchNormalization(),
-        Dropout(rate= 0.3),
-        Dense(10, activation = 'relu', kernel_regularizer= L2(0.01)),
-        BatchNormalization(),
-        Dense(1, activation = 'sigmoid', kernel_regularizer= L2(0.01))
-    ])
+    # Input Layer
+    InputLayer(input_shape=(IM_SIZE, IM_SIZE, 3)),
 
+    # First Convolutional Block
+    Conv2D(filters=8, kernel_size=3, strides=1, padding='same', activation='relu'),#, kernel_regularizer=L2(0.01)),
+    BatchNormalization(),
+    MaxPool2D(pool_size=2, strides=2),
+    #Dropout(rate=0.3),
+
+    # Second Convolutional Block
+    Conv2D(filters= 16, kernel_size=3, strides=1, padding='same', activation='relu'),#, kernel_regularizer=L2(0.01)),
+    BatchNormalization(),
+    MaxPool2D(pool_size=2, strides=2),
+    #Dropout(rate=0.3),
+
+    # Third Convolutional Block (Additional Layer)
+    #Conv2D(filters=128, kernel_size=3, strides=1, padding='same', activation='relu'),#, kernel_regularizer=L2(0.01)),
+    #BatchNormalization(),
+    #MaxPool2D(pool_size=2, strides=2),
+    #Dropout(rate=0.3),
+
+    # Global Average Pooling instead of Flattening
+    GlobalAveragePooling2D(),
+
+    # Fully Connected Layers
+    Dense(32, activation='relu'),#, kernel_regularizer=L2(0.01)),
+    BatchNormalization(),
+    #Dropout(rate=0.4),
+    
+    Dense(16, activation='relu'),#, kernel_regularizer=L2(0.01)),
+    BatchNormalization(),
+
+    # Output Layer for Binary Classification
+    Dense(1, activation='sigmoid'),#, kernel_regularizer=L2(0.01))
+])
 print(lenet_model.summary())
 
 #-----------------Callbacks-------------------------- 
@@ -176,7 +133,7 @@ def scheduler(epoch, lr):
     else:
         return float(lr*tf.math.exp(-0.1))
     
-scheduler_callback = LearningRateScheduler(scheduler, verbose= 1)
+scheduler_callback = LearningRateScheduler(scheduler, verbose= 0.9)
 
 checkpoint_callback = ModelCheckpoint(
     'checkpoints.keras', monitor= 'val_loss', verbose= 1, save_best_only= True,
@@ -184,7 +141,7 @@ checkpoint_callback = ModelCheckpoint(
 )
 
 plateau_callback = ReduceLROnPlateau(
-    monitor= 'val_accuracy', fator= 0.1, patience= 2, verbose= 1
+    monitor= 'val_accuracy', fator= 0.5, patience= 2, verbose= 1
 )
 
 #-------------Binary Crossentropy Loss----------------
@@ -192,7 +149,7 @@ metrics = [TruePositives(name= 'tp'), FalsePositives(name= 'fp'), TrueNegatives(
            BinaryAccuracy(name= 'accuracy'), Precision(name= 'precision'), Recall(name= 'recall'), AUC(name= 'acu')]
 
 lenet_model.compile(
-    optimizer = Adam(learning_rate = 0.1),
+    optimizer = Adam(learning_rate = 1.0),
     loss = BinaryCrossentropy(),
     metrics = [BinaryAccuracy(name= 'accuracy'), Precision(name= 'precision'), Recall(name= 'recall'), AUC(name= 'acu')]
 )
