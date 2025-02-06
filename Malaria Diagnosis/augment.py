@@ -6,7 +6,7 @@ matplotlib.use("TKAgg")
 import tensorflow_datasets as tfds 
 import tensorflow as tf
 from tensorflow.keras.metrics import BinaryAccuracy, FalsePositives, FalseNegatives, TruePositives, TrueNegatives, Precision, Recall, AUC #type: ignore
-from tensorflow.keras.layers import InputLayer, Conv2D, Dense, MaxPool2D, Flatten, BatchNormalization, Dropout, GlobalAveragePooling2D #type: ignore
+from tensorflow.keras.layers import InputLayer, Conv2D, Dense, MaxPool2D, Flatten, BatchNormalization, Dropout, GlobalAveragePooling2D, Resizing, Rescaling, RandomFlip, RandomRotation #type: ignore
 from tensorflow.keras.losses import BinaryCrossentropy #type: ignore
 from tensorflow.keras.optimizers import Adam #type: ignore
 from tensorflow.keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau #type: ignore
@@ -18,8 +18,8 @@ import seaborn as sns
 
 dataset, dataset_info = tfds.load('malaria', with_info=True, as_supervised=True, shuffle_files=True, split=['train']) 
 
-TRAIN_RATIO = 0.75
-VAL_RATIO = 0.15
+TRAIN_RATIO = 0.8
+VAL_RATIO = 0.1
 TEST_RATIO = 0.1
 
 def splits(dataset, train_ratio, val_ratio, test_ratio):
@@ -35,33 +35,49 @@ def splits(dataset, train_ratio, val_ratio, test_ratio):
 
 train_dataset, val_dataset, test_dataset = splits(dataset[0], TRAIN_RATIO, VAL_RATIO, TEST_RATIO)
 
-print(len(train_dataset))
+
 IM_SIZE = 224
+
+
 
 def resize_rescale(image, label):
     image = tf.image.resize(image, (IM_SIZE, IM_SIZE)) / 255.0
     return image, label
 
+resize_rescale_layers = tf.keras.Sequential([
+    Resizing(IM_SIZE, IM_SIZE),
+    Rescaling(1.0/255)
+])
+
+
+
 def augment(image, label):
     #augmented_image = tf.image.rot90(image)
     #augmented_image = tf.image.adjust_saturation(augmented_image, saturation_factor=0.3)
-    augmented_image = tf.image.random_flip_left_right(image)
-    augmented_image = tf.image.random_flip_up_down(augmented_image)
+    augmented_image = tf.image.flip_left_right(image)
     
     return resize_rescale(augmented_image, label)
 
 
+augment_layers = tf.keras.Sequential([
+    RandomRotation(factor= (0.25, 0.2501)),
+    RandomFlip(mode= 'HORIZONTAL',)
+])
+
+
+
+def augment_layer(image, label):
+    return augment_layers(resize_rescale_layers(image), training= True), label
+
 train_dataset = (train_dataset
-                 .map(resize_rescale)
-                 #.concatenate(train_dataset.map(augment))
-                 .map(augment)
                  .shuffle(buffer_size = 8, reshuffle_each_iteration=True)
+                 .map(augment_layer)
                  .batch(32)
                  .prefetch(tf.data.AUTOTUNE))
 
 val_dataset = (val_dataset
-               .map(resize_rescale)
                .shuffle(buffer_size = 8, reshuffle_each_iteration=True)
+               .map(resize_rescale)
                .batch(32)
                .prefetch(tf.data.AUTOTUNE))
 
@@ -71,40 +87,34 @@ test_dataset = (test_dataset
 
 
 lenet_model = tf.keras.Sequential([
-    # Input Layer
+
     InputLayer(input_shape=(IM_SIZE, IM_SIZE, 3)),
 
-    # First Convolutional Block
-    Conv2D(filters=8, kernel_size=3, strides=1, padding='same', activation='relu'),#, kernel_regularizer=L2(0.01)),
+
+    Conv2D(filters= 6, kernel_size=3, strides=1, padding='same', activation='relu')#, kernel_regularizer=L2(0.01)),
     BatchNormalization(),
     MaxPool2D(pool_size=2, strides=2),
     #Dropout(rate=0.3),
 
-    # Second Convolutional Block
-    Conv2D(filters= 16, kernel_size=3, strides=1, padding='same', activation='relu'),#, kernel_regularizer=L2(0.01)),
+
+    Conv2D(filters= 16, kernel_size=3, strides=1, padding='same', activation='relu')#, kernel_regularizer=L2(0.01)),
     BatchNormalization(),
     MaxPool2D(pool_size=2, strides=2),
     #Dropout(rate=0.3),
 
-    # Third Convolutional Block (Additional Layer)
-    #Conv2D(filters=128, kernel_size=3, strides=1, padding='same', activation='relu'),#, kernel_regularizer=L2(0.01)),
-    #BatchNormalization(),
-    #MaxPool2D(pool_size=2, strides=2),
-    #Dropout(rate=0.3),
 
-    # Global Average Pooling instead of Flattening
-    GlobalAveragePooling2D(),
+    Flatten()
 
-    # Fully Connected Layers
-    Dense(128, activation='relu'),#, kernel_regularizer=L2(0.01)),
+
+    Dense(100, activation='relu')#, kernel_regularizer=L2(0.01)),
     BatchNormalization(),
     #Dropout(rate=0.4),
     
-    Dense(64, activation='relu'),#, kernel_regularizer=L2(0.01)),
+    Dense(50, activation='relu')#, kernel_regularizer=L2(0.01)),
     BatchNormalization(),
 
-    # Output Layer for Binary Classification
-    Dense(1, activation='sigmoid'),#, kernel_regularizer=L2(0.01))
+
+    Dense(1, activation='sigmoid')#, kernel_regularizer=L2(0.01))
 ])
 print(lenet_model.summary())
 
@@ -149,12 +159,12 @@ metrics = [TruePositives(name= 'tp'), FalsePositives(name= 'fp'), TrueNegatives(
            BinaryAccuracy(name= 'accuracy'), Precision(name= 'precision'), Recall(name= 'recall'), AUC(name= 'acu')]
 
 lenet_model.compile(
-    optimizer = Adam(learning_rate = 1.0),
+    optimizer = Adam(learning_rate = 0.1),
     loss = BinaryCrossentropy(),
     metrics = [BinaryAccuracy(name= 'accuracy'), Precision(name= 'precision'), Recall(name= 'recall'), AUC(name= 'acu')]
 )
 
-history = lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 40, verbose = 1, callbacks= [plateau_callback, checkpoint_callback])
+history = lenet_model.fit(train_dataset, validation_data= val_dataset, epochs = 10, verbose = 1, callbacks= [plateau_callback, checkpoint_callback])
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
